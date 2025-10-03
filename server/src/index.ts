@@ -1,29 +1,38 @@
-import express, {Application} from 'express';
+import express, { Application } from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import citaRoutes from './routes/cita.routes';
 
-class Server{
-    public app:Application;
-    constructor(){
-        this.app = express();
-        this.config();
-        this.routes();
-    }
+dotenv.config();
 
-    config() : void{
-        this.app.set('port',process.env.PORT || 3000);
-    }
+class Server {
+  public app: Application;
 
-    routes() : void {}
+  constructor() {
+    this.app = express();
+    this.config();
+    this.routes();
+  }
 
-    start() : void{
-        this.app.listen(this.app.get('port'),()=>{
-            console.log('Server on port', this.app.get('port'));
-        });
-    }
+  config(): void {
+    this.app.set('port', process.env.PORT || 3000);
+    this.app.use(cors());
+    this.app.use(express.json());
+    this.app.use(express.urlencoded({ extended: false }));
+  }
+
+  routes(): void {
+    this.app.use('/api/citas', citaRoutes);
+  }
+
+  start(): void {
+    this.app.listen(this.app.get('port'), () => {
+      console.log('Server on port', this.app.get('port'));
+    });
+  }
 }
 
 const server = new Server();
+console.log('WORKS!!!!!');
 server.start();
 
-new Server(); // ejecuta la clase y devuelve un objeto.
-
-console.log('WORKS!!!!!');
