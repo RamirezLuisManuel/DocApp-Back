@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { CitaController } from '../controllers/cita.controller';
+import { verificarToken } from '../middlewares/auth.middleware';
 
 class CitaRoutes {
   public router: Router;
@@ -12,10 +13,22 @@ class CitaRoutes {
   }
 
   config(): void {
+    // Endpoints públicos
     this.router.get('/medicos', this.citaController.obtenerMedicos);
-    this.router.get('/', this.citaController.obtenerCitas);
-    this.router.get('/:id', this.citaController.obtenerCitaPorId);
-    this.router.post('/', this.citaController.crearCita);
+    
+    // Endpoints protegidos - requieren token
+    this.router.get('/paciente/:paciente_id', verificarToken, this.citaController.obtenerCitasPaciente);
+    this.router.get('/medico/:medico_id', verificarToken, this.citaController.obtenerCitasMedico);
+    
+    this.router.post('/', verificarToken, this.citaController.crearCita);
+    this.router.patch('/:id/cancelar', verificarToken, this.citaController.cancelarCita);
+    this.router.patch('/:id/reprogramar', verificarToken, this.citaController.reprogramarCita);
+    this.router.patch('/:id/confirmar', verificarToken, this.citaController.confirmarCita);
+    this.router.patch('/:id/completar', verificarToken, this.citaController.completarCita);
+    this.router.patch('/:id/rechazar', verificarToken, this.citaController.rechazarCita);
+    
+    this.router.get('/:id', verificarToken, this.citaController.obtenerCitaPorId);
+    this.router.get('/', verificarToken, this.citaController.obtenerCitas);
   }
 }
 
