@@ -3,19 +3,39 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import pool from '../config/database';
 import { LoginCredentials, AuthResponse } from '../models/auth.model';
+import { enviarEmailVerificacion } from '../config/email.config';
 
 export class AuthController {
   
-  // Registrar nuevo usuario
-  public async registrar(req: Request, res: Response): Promise<void> {
+  // Registro de usuarios (pacientees)
+  public registrar = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { nombre, apellido, email, password, rol, telefono } = req.body;
+      const { nombre, apellido, email, password, telefono } = req.body;
 
       // Validar datos requeridos
-      if (!nombre || !apellido || !email || !password || !rol) {
+      if (!nombre || !apellido || !email || !password) {
         res.status(400).json({ 
           success: false, 
-          error: 'Faltan campos requeridos' 
+          error: 'Nombre, apellido, email y contraseña son requeridos' 
+        });
+        return;
+      }
+
+      // Validar formato de email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        res.status(400).json({ 
+          success: false, 
+          error: 'Email inválido' 
+        });
+        return;
+      }
+
+      // Validar longitud de contraseña
+      if (password.length < 8) {
+        res.status(400).json({ 
+          success: false, 
+          error: 'La contraseña debe tener al menos 8 caracteres' 
         });
         return;
       }
@@ -37,31 +57,207 @@ export class AuthController {
       // Encriptar contraseña
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Insertar usuario
+      // Generar código de verificación de 6 dígitos
+      const codigoVerificacion = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      // Fecha de expiración (15 minutos)
+      const codigoExpira = new Date();
+      codigoExpira.setMinutes(codigoExpira.getMinutes() + 15);
+
+      // Insertar usuario (SIEMPRE como paciente, estado inactivo hasta verificar email)
       const [result] = await pool.query(
-        'INSERT INTO usuarios (nombre, apellido, email, password, rol, telefono) VALUES (?, ?, ?, ?, ?, ?)',
-        [nombre, apellido, email, hashedPassword, rol, telefono || null]
+        `INSERT INTO usuarios 
+        (nombre, apellido, email, password, rol, telefono, estado, codigo_verificacion, codigo_expira, email_verificado) 
+        VALUES (?, ?, ?, ?, 'paciente', ?, 'inactivo', ?, ?, FALSE)`,
+        [nombre, apellido, email, hashedPassword, telefono || null, codigoVerificacion, codigoExpira]
       );
 
       const insertResult = result as any;
 
+      // Enviar email de verificación
+      const emailEnviado = await enviarEmailVerificacion(email, nombre, codigoVerificacion);
+
+      if (!emailEnviado) {
+        console.error('Error al enviar email de verificación');
+        // No bloquear el registro si falla el email
+      }
+
       res.status(201).json({ 
         success: true, 
-        message: 'Usuario registrado exitosamente',
-        data: { id: insertResult.insertId }
+        message: 'Registro exitoso. Revisa tu email para verificar tu cuenta.',
+        data: { 
+          id: insertResult.insertId,
+          email: email,
+          requiereVerificacion: true
+        }
       });
     } catch (error) {
-      console.error(error);
+      console.error('Error en registro:', error);
       res.status(500).json({ success: false, error: 'Error al registrar usuario' });
     }
   }
 
-  // Login
-  public async login(req: Request, res: Response): Promise<void> {
+  // Verificar código de email
+  public verificarEmail = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { email, codigo } = req.body;
+
+      if (!email || !codigo) {
+        res.status(400).json({ 
+          success: false, 
+          error: 'Email y código son requeridos' 
+        });
+        return;
+      }
+
+      // Buscar usuario con ese email y código
+      const [usuarios] = await pool.query(
+        `SELECT id, nombre, apellido, email, rol, codigo_expira 
+         FROM usuarios 
+         WHERE email = ? AND codigo_verificacion = ? AND email_verificado = FALSE`,
+        [email, codigo]
+      );
+
+      const usuariosArray = usuarios as any[];
+
+      if (usuariosArray.length === 0) {
+        res.status(400).json({ 
+          success: false, 
+          error: 'Código inválido o email ya verificado' 
+        });
+        return;
+      }
+
+      const usuario = usuariosArray[0];
+
+      // Verificar si el código expiró
+      const ahora = new Date();
+      const expira = new Date(usuario.codigo_expira);
+
+      if (ahora > expira) {
+        res.status(400).json({ 
+          success: false, 
+          error: 'El código ha expirado. Solicita uno nuevo.' 
+        });
+        return;
+      }
+
+      // Activar usuario
+      await pool.query(
+        `UPDATE usuarios 
+         SET email_verificado = TRUE, 
+             estado = 'activo', 
+             codigo_verificacion = NULL,
+             codigo_expira = NULL
+         WHERE id = ?`,
+        [usuario.id]
+      );
+
+      // Generar token JWT automáticamente
+      const token = jwt.sign(
+        { 
+          id: usuario.id, 
+          email: usuario.email, 
+          rol: usuario.rol 
+        },
+        process.env.JWT_SECRET || 'secret_key_cambiar_en_produccion',
+        { expiresIn: '24h' }
+      );
+
+      res.json({ 
+        success: true, 
+        message: '¡Email verificado exitosamente! Bienvenido a DocApp.',
+        token,
+        user: {
+          id: usuario.id,
+          nombre: usuario.nombre,
+          apellido: usuario.apellido,
+          email: usuario.email,
+          rol: usuario.rol
+        }
+      });
+    } catch (error) {
+      console.error('Error en verificación:', error);
+      res.status(500).json({ success: false, error: 'Error al verificar email' });
+    }
+  }
+
+  // Reenviar código de verificación
+  public reenviarCodigo = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        res.status(400).json({ 
+          success: false, 
+          error: 'Email es requerido' 
+        });
+        return;
+      }
+
+      // Buscar usuario
+      const [usuarios] = await pool.query(
+        'SELECT id, nombre, email, email_verificado FROM usuarios WHERE email = ?',
+        [email]
+      );
+
+      const usuariosArray = usuarios as any[];
+
+      if (usuariosArray.length === 0) {
+        res.status(404).json({ 
+          success: false, 
+          error: 'Email no registrado' 
+        });
+        return;
+      }
+
+      const usuario = usuariosArray[0];
+
+      if (usuario.email_verificado) {
+        res.status(400).json({ 
+          success: false, 
+          error: 'Este email ya está verificado' 
+        });
+        return;
+      }
+
+      // Generar nuevo código
+      const codigoVerificacion = Math.floor(100000 + Math.random() * 900000).toString();
+      const codigoExpira = new Date();
+      codigoExpira.setMinutes(codigoExpira.getMinutes() + 15);
+
+      // Actualizar código
+      await pool.query(
+        'UPDATE usuarios SET codigo_verificacion = ?, codigo_expira = ? WHERE id = ?',
+        [codigoVerificacion, codigoExpira, usuario.id]
+      );
+
+      // Enviar email
+      const emailEnviado = await enviarEmailVerificacion(email, usuario.nombre, codigoVerificacion);
+
+      if (!emailEnviado) {
+        res.status(500).json({ 
+          success: false, 
+          error: 'Error al enviar email' 
+        });
+        return;
+      }
+
+      res.json({ 
+        success: true, 
+        message: 'Código reenviado. Revisa tu email.' 
+      });
+    } catch (error) {
+      console.error('Error al reenviar código:', error);
+      res.status(500).json({ success: false, error: 'Error al reenviar código' });
+    }
+  }
+
+  // Login 
+  public login = async (req: Request, res: Response): Promise<void> => {
     try {
       const { email, password }: LoginCredentials = req.body;
 
-      // Validar datos
       if (!email || !password) {
         res.status(400).json({ 
           success: false, 
@@ -70,7 +266,6 @@ export class AuthController {
         return;
       }
 
-      // Buscar usuario
       const [usuarios] = await pool.query(
         'SELECT * FROM usuarios WHERE email = ?',
         [email]
@@ -88,7 +283,17 @@ export class AuthController {
 
       const usuario = usuariosArray[0];
 
-      // Verificar si está activo
+      // Verificar si el email está verificado
+      if (!usuario.email_verificado) {
+        res.status(403).json({ 
+          success: false, 
+          error: 'Debes verificar tu email antes de iniciar sesión',
+          requiereVerificacion: true,
+          email: email
+        });
+        return;
+      }
+
       if (usuario.estado !== 'activo') {
         res.status(403).json({ 
           success: false, 
@@ -97,7 +302,6 @@ export class AuthController {
         return;
       }
 
-      // Verificar contraseña
       const passwordValida = await bcrypt.compare(password, usuario.password);
 
       if (!passwordValida) {
@@ -108,7 +312,6 @@ export class AuthController {
         return;
       }
 
-      // Generar token JWT
       const token = jwt.sign(
         { 
           id: usuario.id, 
@@ -119,7 +322,6 @@ export class AuthController {
         { expiresIn: '24h' }
       );
 
-      // Respuesta exitosa
       const response: AuthResponse = {
         success: true,
         token,
@@ -139,8 +341,8 @@ export class AuthController {
     }
   }
 
-  // Verificar token
-  public async verificarToken(req: Request, res: Response): Promise<void> {
+  // MVerifica Token
+  public verificarToken = async (req: Request, res: Response): Promise<void> => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
 
@@ -154,7 +356,6 @@ export class AuthController {
         process.env.JWT_SECRET || 'secret_key_cambiar_en_produccion'
       ) as any;
 
-      // Obtener datos actualizados del usuario
       const [usuarios] = await pool.query(
         'SELECT id, nombre, apellido, email, rol FROM usuarios WHERE id = ?',
         [decoded.id]
@@ -176,10 +377,9 @@ export class AuthController {
     }
   }
 
-  // Obtener perfil del usuario autenticado
-  public async obtenerPerfil(req: Request, res: Response): Promise<void> {
+  public obtenerPerfil = async (req: Request, res: Response): Promise<void> => {
     try {
-      const userId = (req as any).userId; // Viene del middleware
+      const userId = (req as any).userId;
 
       const [usuarios] = await pool.query(
         'SELECT id, nombre, apellido, email, rol, telefono, estado FROM usuarios WHERE id = ?',

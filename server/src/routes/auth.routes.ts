@@ -18,6 +18,10 @@ class AuthRoutes {
     this.router.post('/login', this.authController.login);
     this.router.post('/verify-token', this.authController.verificarToken);
     
+    // Verificacion de correo
+    this.router.post('/verificar-email', this.authController.verificarEmail);
+    this.router.post('/reenviar-codigo', this.authController.reenviarCodigo);
+    
     // Rutas protegidas
     this.router.get('/profile', verificarToken, this.authController.obtenerPerfil);
   }
