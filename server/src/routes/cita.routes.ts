@@ -15,6 +15,11 @@ class CitaRoutes {
   config(): void {
     // Endpoints públicos
     this.router.get('/medicos', this.citaController.obtenerMedicos);
+
+    //Horarios disponibles
+    this.router.get('/horarios-disponibles/:medico_id/:fecha', 
+    this.citaController.obtenerHorariosDisponibles
+  );
     
     // Endpoints protegidos - requieren token
     this.router.get('/paciente/:paciente_id', verificarToken, this.citaController.obtenerCitasPaciente);
