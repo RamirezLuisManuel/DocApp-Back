@@ -1,11 +1,13 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import citaRoutes from './routes/cita.routes';
 import authRoutes from './routes/auth.routes';
 import historialRoutes from './routes/historial.routes';
+import './config/cronJob';
 
-dotenv.config();
+
 
 class Server {
   public app: Application;
