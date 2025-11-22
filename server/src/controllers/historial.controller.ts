@@ -3,6 +3,11 @@ import pool from '../config/database';
 import { HistorialInput, RecetaMedica } from '../models/historial.model';
 import { enviarHistorialMedico } from '../config/email.config'; 
 
+// Abstact Factory
+import { IFabricaKitSalida } from '../patterns/factory/abstractFactory';
+import { FabricaMedicinaGeneral } from '../patterns/factory/concreteFactoryGeneral';
+import { FabricaNutricion } from '../patterns/factory/concreteFactoryNutriologo';
+
 export class HistorialController {
   
   // Crear historial médico completo (con recetas)
@@ -109,6 +114,57 @@ export class HistorialController {
       'UPDATE citas SET estado = ? WHERE id = ?',
       ['completada', historialData.cita_id]
     );
+
+
+    // 
+    // ========================================================================================================
+    // Abstract Factory
+    // =======================================================================================================
+    
+    // DETECCIÓN AUTOMÁTICA DE ESPECIALIDAD (Tu Join Triple)
+    // Consultamos la especialidad del médico
+    const [rowsEspecialidad] = await connection.query(
+      `SELECT e.nombre 
+        FROM perfiles_medicos pm
+        INNER JOIN especialidades e ON pm.especialidad_id = e.id
+        WHERE pm.usuario_id = ?`,
+      [userId]
+    );
+
+    // Obtenemos el string, ej: "Nutrición", "Cardiología", "Medicina General"
+    const nombreEspecialidad = (rowsEspecialidad as any[])[0]?.nombre || 'General';
+
+    // Aplicacion Abstract Factory
+    let fabrica: IFabricaKitSalida;
+
+    // Lógica de decisión basada en lo que recuperamos de la BD
+    // Puedes ajustar los strings según como los tengas en tu tabla 'especialidades'
+    if (nombreEspecialidad.toLowerCase().includes('Nutrici?n') || 
+        nombreEspecialidad.toLowerCase().includes('nutricion')) {
+        
+        fabrica = new FabricaNutricion();
+        console.log(`🏭 Medico es Nutriólogo. Usando FabricaNutricion.`);
+
+      } else {
+          // Default para cualquier otra especialidad
+          fabrica = new FabricaMedicinaGeneral();
+          console.log(`🏭 Medico es ${nombreEspecialidad}. Usando FabricaMedicinaGeneral.`);
+      }
+
+      // Generamos los documentos del Kit
+      const docPrincipal = fabrica.crearFormularioPrincipal();
+      const docSecundario = fabrica.crearFormularioSecundario();
+
+      // Generamos el HTML usando los datos que acabamos de guardar
+      const htmlPrincipal = docPrincipal.generarHtml(historialData.recetas);
+      const htmlSecundario = docSecundario.generarHtml();
+
+      // Preparamos el contenido completo para el email
+      const contenidoKit = htmlPrincipal + "<br/>" + htmlSecundario;
+
+      // ==============================================================================================
+      // Fin Abstract Factory
+      // ==============================================================================================
 
     // ✅ NUEVO: Obtener datos del paciente y médico para enviar email
     const [datosPaciente] = await connection.query(

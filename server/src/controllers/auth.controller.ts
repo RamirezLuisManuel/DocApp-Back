@@ -322,6 +322,23 @@ export class AuthController {
         { expiresIn: '24h' }
       );
 
+      let nombreEspecialidad: string | undefined = undefined;
+
+      if (usuario.rol === 'medico') {
+        const [rows] = await pool.query(
+          `SELECT e.nombre 
+           FROM perfiles_medicos pm
+           INNER JOIN especialidades e ON pm.especialidad_id = e.id
+           WHERE pm.usuario_id = ?`,
+          [usuario.id]
+        );
+        
+        const rowsArray = rows as any[];
+        if (rowsArray.length > 0) {
+          nombreEspecialidad = rowsArray[0].nombre;
+        }
+      }
+
       const response: AuthResponse = {
         success: true,
         token,
@@ -330,7 +347,8 @@ export class AuthController {
           nombre: usuario.nombre,
           apellido: usuario.apellido,
           email: usuario.email,
-          rol: usuario.rol
+          rol: usuario.rol,
+          especialidad: nombreEspecialidad || "" // <--- AÑADIR ESTO AQUÍ
         }
       };
 
@@ -368,9 +386,35 @@ export class AuthController {
         return;
       }
 
+      const usuarioEncontrado = usuariosArray[0]; // Tu usuario base
+
+      // =========================================================
+      // 🕵️ LÓGICA NUEVA: Recuperar Especialidad también al verificar token
+      // =========================================================
+      let nombreEspecialidad: string | undefined = undefined;
+
+      if (usuarioEncontrado.rol === 'medico') {
+        const [rows] = await pool.query(
+          `SELECT e.nombre 
+           FROM perfiles_medicos pm
+           INNER JOIN especialidades e ON pm.especialidad_id = e.id
+           WHERE pm.usuario_id = ?`,
+          [usuarioEncontrado.id]
+        );
+        
+        const rowsArray = rows as any[];
+        if (rowsArray.length > 0) {
+          nombreEspecialidad = rowsArray[0].nombre;
+        }
+      }
+      // =========================================================
+
       res.json({ 
         success: true, 
-        user: usuariosArray[0] 
+        user: {
+          ...usuarioEncontrado,
+            especialidad: nombreEspecialidad // <--- AÑADIR ESTO
+        }
       });
     } catch (error) {
       res.status(401).json({ success: false, error: 'Token inválido' });

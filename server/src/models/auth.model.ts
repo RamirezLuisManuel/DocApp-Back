@@ -12,6 +12,7 @@ export interface AuthResponse {
     apellido: string;
     email: string;
     rol: 'paciente' | 'medico' | 'admin' | 'ayudante';
+    especialidad?: string; // Especialidad para eqtiquetas dinamicas en front
   };
   message?: string;
 }
