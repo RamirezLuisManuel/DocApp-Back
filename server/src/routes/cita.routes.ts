@@ -13,7 +13,7 @@ class CitaRoutes {
   }
 
   config(): void {
-    // Endpoints públicos
+    // Endpoints
     this.router.get('/medicos', this.citaController.obtenerMedicos);
 
     //Horarios disponibles

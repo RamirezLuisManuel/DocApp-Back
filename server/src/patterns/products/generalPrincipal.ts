@@ -4,7 +4,15 @@ export class RecetaFarmacia implements IFormularioPrincipal {
     generarHtml(items: any[]): string {
         let html = `<h3>💊 Receta Médica</h3><ul>`;
         items.forEach(item => {
-            html += `<li><b>${item.medicamento_nombre}</b> (${item.dosis}) - ${item.frecuencia} durante ${item.duracion}<br><i>${item.indicaciones || ''}</i></li>`;
+            const detalles = typeof item.detalles === 'string' 
+              ? JSON.parse(item.detalles) 
+              : item.detalles;
+            
+            html += `<li>
+              <b>${item.nombre}</b> (${detalles.dosis}) 
+              - ${detalles.frecuencia} durante ${detalles.duracion}
+              <br><i>Vía: ${detalles.via}</i>
+            </li>`;
         });
         html += `</ul>`;
         return html;

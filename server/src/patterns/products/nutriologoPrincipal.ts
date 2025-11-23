@@ -2,10 +2,17 @@ import { IFormularioPrincipal } from "./abstractProductPrincipal";
 
 export class PlanAlimenticio implements IFormularioPrincipal {
     generarHtml(items: any[]): string {
-        let html = `<h3>🥗 Plan Nutricional</h3><ul>`;
+        let html = `<h3>🥗 Plan Alimenticio</h3><ul>`;
         items.forEach(item => {
-            // Reinterpretamos 'medicamento_nombre' como 'Alimento' y 'dosis' como 'Porción'
-            html += `<li><b>${item.medicamento_nombre}</b> - Porción: ${item.dosis}<br>Horario: ${item.frecuencia} (${item.duracion})<br><i>Nota: ${item.indicaciones || ''}</i></li>`;
+            const detalles = typeof item.detalles === 'string' 
+              ? JSON.parse(item.detalles) 
+              : item.detalles;
+            
+            html += `<li>
+              <b>${item.nombre}</b> (${detalles.porcion})
+              - ${detalles.horario}
+              <br><i>${detalles.calorias || ''}</i>
+            </li>`;
         });
         html += `</ul>`;
         return html;

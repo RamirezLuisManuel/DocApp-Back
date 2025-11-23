@@ -79,12 +79,12 @@ export const emailVerificacionTemplate = (nombre: string, codigo: string) => `
 </head>
 <body>
   <div class="header">
-    <h1>🏥 DocApp</h1>
+    <h1>🏥 DocStop</h1>
     <p>Verificación de Cuenta</p>
   </div>
   <div class="content">
     <h2>¡Hola ${nombre}!</h2>
-    <p>Gracias por registrarte en DocApp. Para completar tu registro, por favor verifica tu correo electrónico.</p>
+    <p>Gracias por registrarte en DocStop. Para completar tu registro, por favor verifica tu correo electrónico.</p>
     
     <p>Tu código de verificación es:</p>
     
@@ -92,15 +92,14 @@ export const emailVerificacionTemplate = (nombre: string, codigo: string) => `
     
     <p>Si no solicitaste este registro, puedes ignorar este mensaje.</p>
     
-    <p>Saludos,<br><strong>El equipo de DocApp</strong></p>
+    <p>Saludos,<br><strong>El equipo de DocStop</strong></p>
   </div>
   <div class="footer">
     <p>Este es un email automático, por favor no responder.</p>
-    <p>&copy; 2025 DocApp - Sistema de Gestión Médica</p>
+    <p>&copy; 2025 DocStop - Sistema de Gestión Médica</p>
   </div>
 </body>
 </html>
-
 `;
 
 // Función para enviar email de verificación
@@ -111,9 +110,9 @@ export const enviarEmailVerificacion = async (
 ): Promise<boolean> => {
   try {
     await transporter.sendMail({
-      from: `"DocApp" <${process.env.EMAIL_USER}>`,
+      from: `"DocStop" <${process.env.EMAIL_USER}>`,
       to: email,
-      subject: '🔐 Verifica tu cuenta de DocApp',
+      subject: '🔐 Verifica tu cuenta de DocStop',
       html: emailVerificacionTemplate(nombre, codigo)
     });
     return true;
@@ -123,18 +122,16 @@ export const enviarEmailVerificacion = async (
   }
 };
 
-// ✅ FUNCIÓN COMPLETA: Enviar historial médico por email
 export const enviarHistorialMedico = async (
 	pacienteEmail: string,
 	pacienteNombre: string,
 	medicoNombre: string,
 	especialidad: string,
 	historial: any,
-	recetas: any[]
+	contenidoKitHtml: string  // ← Solo un parámetro: el HTML ya generado
 ): Promise<boolean> => {
 	try {
-		// ✅ URL de tu logo en Imgur
-		const LOGO_URL = 'https://i.imgur.com/py2jfvb.png'; // Mantener el mismo logo
+		const LOGO_URL = 'https://i.imgur.com/py2jfvb.png';
 
 		// Formatear fecha de la consulta
 		const fecha = new Date(historial.fecha_consulta).toLocaleDateString('es-MX', {
@@ -146,61 +143,10 @@ export const enviarHistorialMedico = async (
 			minute: '2-digit'
 		});
 
-		// ----------------------------------------------------------------------
-		// 1. Generar HTML de recetas (Recetario con diseño limpio y tabular)
-		// ----------------------------------------------------------------------
-		let recetasHTML = '';
-		if (recetas && recetas.length > 0) {
-			recetasHTML = recetas.map((receta, index) => `
-				<!-- Receta Item ${index + 1} -->
-				<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom: 16px; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; background-color: #ffffff;">
-					<tr>
-						<td style="padding: 15px 20px; background-color: #F7F9FC; border-bottom: 1px solid #E5E7EB;">
-							<h4 style="margin: 0; font-size: 17px; color: #1F2937; font-weight: 600;">
-								${index + 1}. ${receta.medicamento_nombre}
-							</h4>
-							${receta.medicamento_generico ? `<p style="margin: 4px 0 0 0; color: #6B7280; font-size: 13px;">${receta.medicamento_generico}</p>` : ''}
-						</td>
-					</tr>
-					<tr>
-						<td style="padding: 15px 20px 5px 20px; background-color: #ffffff;">
-							<!-- Detalles de la Receta (Usando tabla para layout) -->
-							<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="font-size: 14px; color: #374151;">
-								<tr>
-									<td style="padding: 5px 0; width: 50%;"><strong style="color: #3B82F6;">Dosis:</strong> ${receta.dosis}</td>
-									<td style="padding: 5px 0; width: 50%;"><strong style="color: #3B82F6;">Frecuencia:</strong> ${receta.frecuencia}</td>
-								</tr>
-								<tr>
-									<td style="padding: 5px 0;"><strong style="color: #3B82F6;">Duración:</strong> ${receta.duracion}</td>
-									${receta.via_administracion ? `<td style="padding: 5px 0;"><strong style="color: #3B82F6;">Vía:</strong> ${receta.via_administracion}</td>` : '<td></td>'}
-								</tr>
-							</table>
-						</td>
-					</tr>
-					${receta.indicaciones ? `
-					<tr>
-						<td style="padding: 15px 20px; background-color: #EFF6FF; border-top: 1px solid #E5E7EB;">
-							<strong style="color: #1E40AF; font-size: 13px;">Indicaciones:</strong> ${receta.indicaciones}
-						</td>
-					</tr>
-					` : ''}
-				</table>
-			`).join('');
-		} else {
-			recetasHTML = `
-				<div style="text-align: center; padding: 30px 20px; background: #F9FAFB; border-radius: 12px; border: 1px solid #E5E7EB;">
-					<p style="margin: 0; color: #6B7280; font-size: 15px;">No se registraron medicamentos recetados en esta consulta.</p>
-				</div>
-			`;
-		}
-		
-		// ----------------------------------------------------------------------
-		// 2. Generar HTML de Signos Vitales (Grid de 2 columnas con tabla)
-		// ----------------------------------------------------------------------
+		// Generar HTML de Signos Vitales
 		let signosHTML = '';
 		if (historial.presion_arterial || historial.temperatura || historial.peso || historial.altura) {
 			const signos = [];
-			// Usamos tablas para la disposición de 2 columnas para compatibilidad en email
 			if (historial.presion_arterial) signos.push(`
 				<td width="50%" style="padding-right: 6px;">
 					<div style="background: white; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #D1D5DB;">
@@ -234,7 +180,6 @@ export const enviarHistorialMedico = async (
 				</td>
 			`);
 
-			// Agrupar los signos en filas de 2
 			let signRows = [];
 			for (let i = 0; i < signos.length; i += 2) {
 				let row = `
@@ -258,9 +203,7 @@ export const enviarHistorialMedico = async (
 			`;
 		}
 
-		// ----------------------------------------------------------------------
-		// 3. Template HTML Principal (Estructura de Email con tablas)
-		// ----------------------------------------------------------------------
+		// Template HTML Principal
 		const htmlTemplate = `
 <!DOCTYPE html>
 <html lang="es">
@@ -272,12 +215,10 @@ export const enviarHistorialMedico = async (
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #F0F4F8;">
 	
-	<!-- Contenedor Exterior -->
 	<table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #F0F4F8; padding: 40px 20px;">
 		<tr>
 			<td align="center">
 				
-				<!-- Contenedor Principal de Contenido -->
 				<table cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 680px; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
 					
 					<!-- Header con Logo -->
@@ -352,12 +293,9 @@ export const enviarHistorialMedico = async (
 							<!-- Signos Vitales -->
 							${signosHTML}
 
-							<!-- Medicamentos Recetados -->
+							<!-- Contenido generado por Abstract Factory -->
 							<div style="margin-bottom: 30px;">
-								<h3 style="margin: 0 0 15px 0; color: #1F2937; font-size: 18px; font-weight: 600; border-bottom: 2px solid #E5E7EB; padding-bottom: 10px;">
-									<span style="color: #10B981;">💊</span> Medicamentos Recetados
-								</h3>
-								${recetasHTML}
+								${contenidoKitHtml}
 							</div>
 
 							<!-- Plan de Tratamiento -->
