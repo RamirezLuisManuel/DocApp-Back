@@ -7,11 +7,17 @@ import authRoutes from './routes/auth.routes';
 import historialRoutes from './routes/historial.routes';
 import './config/cronJob';
 
+// Importamos las interfaces del patrón Proxy
+import { IFdaService } from './patterns/proxy/fda.interface';
+import { FdaProxy } from './patterns/proxy/fda.proxy';
 
 
 class Server {
   public app: Application;
   private port: number;
+  // Instanciamos el Proxy (El "intermediario" con caché)
+  // Usamos la interfaz IFdaService para desacoplar el código
+  private fdaService: IFdaService = new FdaProxy();
 
   constructor() {
     this.app = express();
@@ -31,52 +37,40 @@ class Server {
     this.app.use('/api/citas', citaRoutes);
 
     this.app.use('/api/historial', historialRoutes);
-    
-    // Ruta de medicamentos (FDA API)
+
+    // Ruta de medicamentos (FDA API) Refactorizada para usar proxy de cache
     this.app.get('/api/drugs/search/:name', async (req: Request, res: Response): Promise<void> => {
-  try {
-    const name = req.params.name;
-    
-    if (!name) {
-      res.status(400).json({ success: false, error: 'Nombre de medicamento requerido' });
-      return;
-    }
+      try {
+        const name = req.params.name;
+        
+        if (!name) {
+          res.status(400).json({ success: false, error: 'Nombre de medicamento requerido' });
+          return;
+        }
 
-    const drugName = encodeURIComponent(name);
-    const apiKey = process.env.FDA_API_KEY;
-    
-    if (!apiKey) {
-      res.status(500).json({ success: false, error: 'API Key no configurada' });
-      return;
-    }
+        console.log(`🔎 Solicitud entrante para buscar: "${name}"`);
 
-    const url = `https://api.fda.gov/drug/label.json?api_key=${apiKey}&search=openfda.brand_name:"${drugName}"&limit=10`;
-    
-    console.log('Buscando medicamento:', drugName);
-    
-    const response = await fetch(url);
-    const data: any = await response.json();
-    
-    if (data.results && Array.isArray(data.results) && data.results.length > 0) {
-      const medicamentos = data.results.map((result: any) => ({
-        marca: result.openfda?.brand_name?.[0] || 'Sin marca',
-        generico: result.openfda?.generic_name?.[0] || 'N/A',
-        fabricante: result.openfda?.manufacturer_name?.[0] || 'N/A',
-        indicaciones: result.indications_and_usage?.[0] || 'N/A',
-        dosificacion: result.dosage_and_administration?.[0] || 'N/A',
-        advertencias: result.warnings?.[0] || 'N/A',
-        efectos_adversos: result.adverse_reactions?.[0] || 'N/A'
-      }));
-      
-      res.json({ success: true, data: medicamentos });
-    } else {
-      res.json({ success: true, data: [], message: 'No se encontraron resultados' });
-    }
-  } catch (error: any) {
-    console.error('Error:', error);
-    res.status(500).json({ success: false, error: 'Error al buscar medicamento' });
-  }
-});
+        // AQUI ESTÁ LA MAGIA:
+        // Llamamos al servicio. No sabemos si viene de caché o de internet,
+        // y al controlador no le importa. Solo recibe los datos listos.
+        const medicamentos = await this.fdaService.buscarMedicamento(name);
+        
+        if (medicamentos && medicamentos.length > 0) {
+          res.json({ success: true, data: medicamentos });
+        } else {
+          res.json({ success: true, data: [], message: 'No se encontraron resultados' });
+        }
+
+      } catch (error: any) {
+        console.error('❌ Error en el controlador de medicamentos:', error);
+        // Si el error es por falta de API Key (lanzado desde el servicio Real), lo informamos
+        if (error.message.includes('API Key')) {
+            res.status(500).json({ success: false, error: 'Error de configuración del servidor' });
+        } else {
+            res.status(500).json({ success: false, error: 'Error al buscar medicamento' });
+        }
+      }
+    });
   }
 
   start(): void {
