@@ -4,9 +4,12 @@ import { HistorialInput, RecetaMedica } from '../models/historial.model';
 import { enviarHistorialMedico } from '../config/email.config'; 
 
 // Abstract Factory
-import { IFabricaKitSalida } from '../patterns/factory/abstractFactory';
-import { FabricaMedicinaGeneral } from '../patterns/factory/concreteFactoryGeneral';
-import { FabricaNutricion } from '../patterns/factory/concreteFactoryNutriologo';
+import { IFabricaKitSalida } from '../patterns/core/abstractFactory';
+import { FabricaMedicinaGeneral } from '../patterns/especialidades/general/concreteFactoryGeneral';
+import { FabricaNutricion } from '../patterns/especialidades/nutricion/concreteFactoryNutriologo';
+import { FabricaPediatria } from '../patterns/especialidades/pediatria/concreteFactoryPediatria';
+import { FabricaPsiquiatria } from '../patterns/especialidades/psiquiatria/concreteFactoryPsiquiatria';
+import { FabricaDermatologia } from '../patterns/especialidades/dermatologia/concreteFactoryDermatologia';
 
 export class HistorialController {
   
@@ -106,11 +109,23 @@ export class HistorialController {
         
         // Determinar el tipo de item según la especialidad
         let tipoItem = 'medicamento'; // Default
-        
-        if (nombreEspecialidad.toLowerCase().includes('nutricion') || 
+
+        if (nombreEspecialidad.toLowerCase().includes('nutricion') ||
             nombreEspecialidad.toLowerCase().includes('nutrición')) {
           tipoItem = 'alimento';
           console.log('🥗 Guardando como alimentos (nutrición)');
+        } else if (nombreEspecialidad.toLowerCase().includes('pediatria') ||
+                   nombreEspecialidad.toLowerCase().includes('pediatría')) {
+          tipoItem = 'medicamento';
+          console.log('👶 Guardando como medicamentos (pediatría)');
+        } else if (nombreEspecialidad.toLowerCase().includes('psiquiatria') ||
+                   nombreEspecialidad.toLowerCase().includes('psiquiatría')) {
+          tipoItem = 'medicamento';
+          console.log('🧠 Guardando como medicamentos (psiquiatría)');
+        } else if (nombreEspecialidad.toLowerCase().includes('dermatologia') ||
+                   nombreEspecialidad.toLowerCase().includes('dermatología')) {
+          tipoItem = 'medicamento';
+          console.log('🧴 Guardando como medicamentos (dermatología)');
         } else {
           console.log('💊 Guardando como medicamentos (medicina general)');
         }
@@ -164,15 +179,27 @@ export class HistorialController {
       );
 
       // ====================================================================
-      // ABSTRACT FACTORY - Generar HTMLs para el email
+      // ABSTRACT FACTORY - Generar HTMLs
       // ====================================================================
       
       let fabrica: IFabricaKitSalida;
 
-      if (nombreEspecialidad.toLowerCase().includes('nutricion') || 
+      if (nombreEspecialidad.toLowerCase().includes('nutricion') ||
           nombreEspecialidad.toLowerCase().includes('nutrición')) {
         fabrica = new FabricaNutricion();
         console.log(`🏭 Usando FabricaNutricion para generar HTMLs`);
+      } else if (nombreEspecialidad.toLowerCase().includes('pediatria') ||
+                 nombreEspecialidad.toLowerCase().includes('pediatría')) {
+        fabrica = new FabricaPediatria();
+        console.log(`🏭 Usando FabricaPediatria para generar HTMLs`);
+      } else if (nombreEspecialidad.toLowerCase().includes('psiquiatria') ||
+                 nombreEspecialidad.toLowerCase().includes('psiquiatría')) {
+        fabrica = new FabricaPsiquiatria();
+        console.log(`🏭 Usando FabricaPsiquiatria para generar HTMLs`);
+      } else if (nombreEspecialidad.toLowerCase().includes('dermatologia') ||
+                 nombreEspecialidad.toLowerCase().includes('dermatología')) {
+        fabrica = new FabricaDermatologia();
+        console.log(`🏭 Usando FabricaDermatologia para generar HTMLs`);
       } else {
         fabrica = new FabricaMedicinaGeneral();
         console.log(`🏭 Usando FabricaMedicinaGeneral para generar HTMLs`);

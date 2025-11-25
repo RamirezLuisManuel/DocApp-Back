@@ -22,7 +22,7 @@ export class FdaServiceReal implements IFdaService {
             }
 
             // Llamamos a la API con el término en INGLÉS
-            const url = `https://api.fda.gov/drug/label.json?api_key=${apiKey}&search=openfda.brand_name:"${drugName}"&limit=5`; // Bajamos el límite a 5 para que la traducción no tarde tanto
+            const url = `https://api.fda.gov/drug/label.json?api_key=${apiKey}&search=openfda.brand_name:"${drugName}"&limit=10`; // Bajamos el límite a 5 para que la traducción no tarde tanto
 
             const response = await fetch(url);
             const data: any = await response.json();

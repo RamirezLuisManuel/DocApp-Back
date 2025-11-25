@@ -1,4 +1,4 @@
-import { IFormularioSecundario } from "./abstractProductSecundario";
+import { IFormularioSecundario } from "../../core/abstractProductSecundario";
 
 export class CuidadosGenerales implements IFormularioSecundario {
     generarHtml(): string {

@@ -1,4 +1,4 @@
-import { IFormularioSecundario } from "./abstractProductSecundario";
+import { IFormularioSecundario } from "../../core/abstractProductSecundario";
 
 export class GuiaEjercicios implements IFormularioSecundario {
     generarHtml(): string {
